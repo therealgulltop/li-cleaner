@@ -1,6 +1,6 @@
 # LI Cleaner
 
-A userscript that hides LinkedIn feed posts that only show up because someone reacted to or commented on them.  If you're connected (1st) to the person who wrote the post, it stays.  Hidden posts shrink to one line with an Undo link, and a counter in the corner shows how much of the feed was hidden.  Click the LI Cleaner logo next to it for settings.  It works on desktop and on LinkedIn's mobile layout (for example in Quetta on Android).  The only thing it fetches is its own version number from GitHub, so it can tell you when an update is waiting.
+A userscript that hides LinkedIn feed posts from people you're not connected to, including ones that only show up because someone reacted to or commented on them.  Posts from your connections (1st), company pages you follow, and reposts stay.  On a computer it can also hide ads in the right column and widen the feed into that space.  Hidden posts shrink to one line with an Undo button, and a counter in the corner shows how much of the feed was hidden.  Click the LI Cleaner logo next to it for settings, or drag either one anywhere.  It works on desktop and on LinkedIn's mobile layout (for example in Quetta on Android).  The only thing it fetches is its own version number from GitHub, so it can tell you when an update is waiting.
 
 | Script | Install |
 |---|---|
