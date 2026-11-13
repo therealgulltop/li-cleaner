@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         LI Cleaner
-// @version      9
+// @version      10
 // @namespace    https://github.com/therealgulltop/li-cleaner
 // @description  Hides LinkedIn feed posts from people you're not connected to, including ones that only show up because someone reacted to or commented on them.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/li-cleaner/main/li-cleaner.user.js
@@ -15,11 +15,11 @@
 // Click the LI Cleaner logo (bottom-left on a computer, bottom-right on a phone) for settings; drag it or the counter anywhere.  Both are remembered in this browser.
 (() => {
   if (document.documentElement.dataset.licRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.licRunning = '9';
+  document.documentElement.dataset.licRunning = '10';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 9, KEY = 'lic-latest-li-cleaner.user.js';
+    const VER = 10, KEY = 'lic-latest-li-cleaner.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.lic-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -111,7 +111,7 @@
     } else if (/^(2nd|3rd\+?)$/.test(who.degree) && !/\sreposted\b/i.test(header)) {
       // the post's own author is a 2nd or 3rd+ person (company pages have no degree and stay; reposts are shares and stay)
       kind = 'others';
-      label = 'Not connected: ' + who.name + ' - ' + who.degree;
+      label = 'Rando: ' + who.name + ' - ' + who.degree;
     } else { card.setAttribute(DONE, 'plain'); tag(card, 'KEEP  ' + (header ? 'header: ' + header : who.name + ' ' + (who.degree || '(page)'))); return; }
     card.dataset.licKind = kind;
     if (who.degree === '1st') { card.setAttribute(DONE, 'kept'); tag(card, 'KEEP  ' + who.name + ' is 1st'); return; }
@@ -181,18 +181,18 @@
   // ---- counter ----
   const GLASS = 'background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14)';
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;' + side + ':56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;' + GLASS + ';color:#fff;font:12px/1.4 system-ui,sans-serif;cursor:grab;user-select:none';
+  box.style.cssText = 'position:fixed;' + side + ':56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;' + GLASS + ';color:#fff;font:12px/1.4 system-ui,sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:grab;user-select:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const posts = Object.keys(seen).length, n = count.reactions + count.comments + count.others;
     const pct = `${posts ? Math.round(100 * n / posts) : 0}%`;
     // on a phone, just the percentage until the menu is open
-    const s = !phone || panel.style.display === 'block' ? `Reactions ${count.reactions} + Comments ${count.comments} + Not connected ${count.others} / Posts ${posts} -- ${pct}` : pct;
+    const s = !phone || panel.style.display === 'block' ? `Reactions ${count.reactions} + Comments ${count.comments} + Randos ${count.others} / Posts ${posts} -- ${pct}` : pct;
     if (box.textContent !== s) { box.textContent = s; place(); }
   };
 
-  // [setting, label, parent setting for an indented sub-option, computer only]
-  const OPTIONS = [['reactions', 'Hide posts others reacted to'], ['comments', 'Hide posts others commented on'], ['others', 'Hide posts from people you’re not connected to'], ['sidebar', 'Hide ads in the right column', '', 1], ['widen', 'Widen the feed into that space', 'sidebar', 1], ['debug', 'Debug labels']];
+  // [setting, label, parent setting for an indented sub-option, computer only, tooltip]
+  const OPTIONS = [['reactions', 'Hide posts others reacted to'], ['comments', 'Hide posts others commented on'], ['others', 'Hide posts from randos', '', 0, 'People you’re not connected to (2nd and 3rd+), even when none of your connections reacted'], ['sidebar', 'Hide ads in the right column', '', 1], ['widen', 'Widen the feed into that space', 'sidebar', 1], ['debug', 'Debug labels']];
   // ---- settings button (the LI Cleaner logo) + panel ----
   // built with DOM calls because LinkedIn's Trusted Types policy blocks innerHTML
   const logo = () => {
@@ -216,17 +216,18 @@
   const hLogo = document.createElement('span'), hName = document.createElement('span'), hVer = document.createElement('span');
   hLogo.style.cssText = 'flex:none;width:24px;height:24px'; hLogo.appendChild(logo());
   hName.textContent = 'LI Cleaner';
-  hVer.style.cssText = 'font-weight:400;font-size:12px;color:#b0b3b8'; hVer.textContent = 'v9';
+  hVer.style.cssText = 'font-weight:400;font-size:12px;color:#b0b3b8'; hVer.textContent = 'v10';
   head.append(hLogo, hName, hVer);
   panel.appendChild(head);
   const boxes = {};
   const syncSubs = () => OPTIONS.forEach(([k, , parent]) => { if (parent) { boxes[k].disabled = !opt[parent]; boxes[k].parentElement.style.opacity = opt[parent] ? '' : '.5'; } });
-  OPTIONS.forEach(([k, text, parent, computer]) => {
+  OPTIONS.forEach(([k, text, parent, computer, tip]) => {
     const row = document.createElement('label');
     row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;color:#e4e6eb;margin:0' + (parent ? ';padding-left:30px' : '') + (computer && phone ? ';display:none' : ''); // a phone has no right column
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px;margin:0;opacity:1;position:static;appearance:auto;-webkit-appearance:checkbox';
     cb.addEventListener('change', () => { opt[k] = cb.checked; save(); syncSubs(); applySettings(k); });
+    if (tip) row.title = tip;
     row.append(cb, document.createTextNode(text));
     panel.appendChild(row);
     boxes[k] = cb;
@@ -349,4 +350,21 @@
   ['popstate', 'focus'].forEach(ev => addEventListener(ev, tick));
   setInterval(tick, 1500);
   tick();
+
+  // Unstick the feed: hiding posts makes the page shorter than LinkedIn expects, and it can stop loading more.
+  // If you're near the bottom and nothing new has loaded for 1.5s, scroll up a screen and straight back
+  // (what fixed it by hand).  At most 3 tries until the feed grows again.
+  let lastH = 0, lastGrow = Date.now(), lastTry = 0, tries = 0;
+  setInterval(() => {
+    if (!/^\/feed(\/|$)/.test(location.pathname)) return;
+    const ws = document.querySelector('main#workspace'), se = ws && ws.scrollHeight > ws.clientHeight ? ws : document.scrollingElement; // LinkedIn scrolls its own <main>
+    const vh = se.clientHeight || innerHeight, h = se.scrollHeight, now = Date.now();
+    if (h !== lastH) { lastH = h; lastGrow = now; tries = 0; return; }
+    if (document.hidden || tries >= 3 || now - lastGrow < 1500 || now - lastTry < 2500) return;
+    if (se.scrollTop + vh < h - vh * 1.5 || !document.querySelector('.lic-bar')) return;
+    lastTry = now; tries++;
+    const y = se.scrollTop;
+    se.scrollTop = Math.max(0, y - vh);
+    requestAnimationFrame(() => requestAnimationFrame(() => { se.scrollTop = y; }));
+  }, 500);
 })();
