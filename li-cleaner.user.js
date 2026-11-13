@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         LI Cleaner
-// @version      7
+// @version      8
 // @namespace    https://github.com/therealgulltop/li-cleaner
 // @description  Hides LinkedIn feed posts that only show up because someone reacted to or commented on them, unless you're connected to the poster.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/li-cleaner/main/li-cleaner.user.js
@@ -12,14 +12,14 @@
 // ==/UserScript==
 // Works on LinkedIn's computer and phone layouts (for example Quetta on Android).
 // Uses LinkedIn's own hide button, then shrinks LinkedIn's "Post hidden" panel to one line.  Undo is respected.
-// Click the LI Cleaner logo (bottom-left on a computer, bottom-right on a phone) for settings; they're remembered in this browser.
+// Click the LI Cleaner logo (bottom-left on a computer, bottom-right on a phone) for settings; drag it or the counter anywhere.  Both are remembered in this browser.
 (() => {
   if (document.documentElement.dataset.licRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.licRunning = '7';
+  document.documentElement.dataset.licRunning = '8';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 7, KEY = 'lic-latest-li-cleaner.user.js';
+    const VER = 8, KEY = 'lic-latest-li-cleaner.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.lic-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -50,7 +50,7 @@
   setInterval(checkLatest, 10 * 60000);
 
   // ---- settings ----
-  const DEFAULTS = { reactions: true, comments: true, debug: false };
+  const DEFAULTS = { reactions: true, comments: true, sidebar: true, widen: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('lic-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('lic-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -175,17 +175,18 @@
   // ---- counter ----
   const GLASS = 'background:rgba(36,37,38,.6);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%);border:1px solid rgba(255,255,255,.14)';
   const box = document.createElement('div');
-  box.style.cssText = 'position:fixed;' + side + ':56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;' + GLASS + ';color:#fff;font:12px/1.4 system-ui,sans-serif;pointer-events:none';
+  box.style.cssText = 'position:fixed;' + side + ':56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;' + GLASS + ';color:#fff;font:12px/1.4 system-ui,sans-serif;cursor:grab;user-select:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
     const posts = Object.keys(seen).length, n = count.reactions + count.comments;
     const pct = `${posts ? Math.round(100 * n / posts) : 0}%`;
     // on a phone, just the percentage until the menu is open
     const s = !phone || panel.style.display === 'block' ? `Reactions ${count.reactions} + Comments ${count.comments} / Posts ${posts} -- ${pct}` : pct;
-    if (box.textContent !== s) box.textContent = s;
+    if (box.textContent !== s) { box.textContent = s; place(); }
   };
 
-  const OPTIONS = [['reactions', 'Hide posts others reacted to'], ['comments', 'Hide posts others commented on'], ['debug', 'Debug labels']];
+  // [setting, label, parent setting for an indented sub-option, computer only]
+  const OPTIONS = [['reactions', 'Hide posts others reacted to'], ['comments', 'Hide posts others commented on'], ['sidebar', 'Hide ads in the right column', '', 1], ['widen', 'Widen the feed into that space', 'sidebar', 1], ['debug', 'Debug labels']];
   // ---- settings button (the LI Cleaner logo) + panel ----
   // built with DOM calls because LinkedIn's Trusted Types policy blocks innerHTML
   const logo = () => {
@@ -209,20 +210,22 @@
   const hLogo = document.createElement('span'), hName = document.createElement('span'), hVer = document.createElement('span');
   hLogo.style.cssText = 'flex:none;width:24px;height:24px'; hLogo.appendChild(logo());
   hName.textContent = 'LI Cleaner';
-  hVer.style.cssText = 'font-weight:400;font-size:12px;color:#b0b3b8'; hVer.textContent = 'v7';
+  hVer.style.cssText = 'font-weight:400;font-size:12px;color:#b0b3b8'; hVer.textContent = 'v8';
   head.append(hLogo, hName, hVer);
   panel.appendChild(head);
   const boxes = {};
-  OPTIONS.forEach(([k, text]) => {
+  const syncSubs = () => OPTIONS.forEach(([k, , parent]) => { if (parent) { boxes[k].disabled = !opt[parent]; boxes[k].parentElement.style.opacity = opt[parent] ? '' : '.5'; } });
+  OPTIONS.forEach(([k, text, parent, computer]) => {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;color:#e4e6eb;margin:0';
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;color:#e4e6eb;margin:0' + (parent ? ';padding-left:30px' : '') + (computer && phone ? ';display:none' : ''); // a phone has no right column
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px;margin:0;opacity:1;position:static;appearance:auto;-webkit-appearance:checkbox';
-    cb.addEventListener('change', () => { opt[k] = cb.checked; save(); applySettings(k); });
+    cb.addEventListener('change', () => { opt[k] = cb.checked; save(); syncSubs(); applySettings(k); });
     row.append(cb, document.createTextNode(text));
     panel.appendChild(row);
     boxes[k] = cb;
   });
+  syncSubs();
   // ---- Debug labels are for the author: the option stays hidden unless you press Ctrl+Alt+D (or tap the version number 5 times) ----
   const dev = () => { try { return localStorage.getItem('fbc-dev') === '1'; } catch (e) { return false; } };
   const syncDev = init => {
@@ -234,7 +237,71 @@
   let taps = [];
   head.lastElementChild.addEventListener('click', () => { const now = Date.now(); taps = taps.filter(t => now - t < 2000).concat(now); if (taps.length >= 5) { taps = []; toggleDev(); } });
   syncDev(true);
-  gear.addEventListener('click', e => { e.stopPropagation(); panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; show(); });
+  gear.addEventListener('click', e => { e.stopPropagation(); if (moved) { moved = false; return; } panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; show(); place(); });
+  // ---- drag the button and counter (together) out of the way; the spot is remembered in this browser ----
+  const POS = 'lic-pos-' + (phone ? 'mobile' : 'desktop');
+  let pos = { x: 0, y: 0 }, moved = false, drag = null;
+  try { pos = Object.assign(pos, JSON.parse(localStorage.getItem(POS) || '{}')); } catch (e) {}
+  function place() {
+    const at = (x, y) => `translate(${x}px,${y}px)`;
+    gear.style.transform = box.style.transform = panel.style.transform = at(pos.x, pos.y);
+    if (!gear.isConnected) return;
+    // keep the pair on screen (a smaller window or a turned phone can push it off)
+    const g = gear.getBoundingClientRect(), b = box.isConnected ? box.getBoundingClientRect() : g;
+    const L = Math.min(g.left, b.left), R = Math.max(g.right, b.right), T = Math.min(g.top, b.top), B = Math.max(g.bottom, b.bottom);
+    const fx = L < 4 ? 4 - L : R > innerWidth - 4 ? innerWidth - 4 - R : 0;
+    const fy = T < 4 ? 4 - T : B > innerHeight - 4 ? innerHeight - 4 - B : 0;
+    if (fx || fy) { pos.x += fx; pos.y += fy; gear.style.transform = box.style.transform = panel.style.transform = at(pos.x, pos.y); }
+    // the menu follows; it opens below the button instead if there's no room above, and slides sideways to stay on screen
+    if (panel.style.display === 'block') {
+      const p = panel.getBoundingClientRect(), g2 = gear.getBoundingClientRect();
+      const py = p.top < 4 ? g2.bottom + 8 - p.top : 0;
+      const px = p.left < 4 ? 4 - p.left : p.right > innerWidth - 4 ? innerWidth - 4 - p.right : 0;
+      if (px || py) panel.style.transform = at(pos.x + px, pos.y + py);
+    }
+  }
+  [gear, box].forEach(el => {
+    el.style.touchAction = 'none';
+    el.addEventListener('pointerdown', e => {
+      if (e.button) return;
+      drag = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y }; moved = false;
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    el.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      if (!moved && Math.hypot(dx, dy) < 6) return; // a tap, not a drag
+      moved = true; e.preventDefault();
+      pos.x = drag.ox + dx; pos.y = drag.oy + dy; place();
+    });
+    const end = () => { if (!drag) return; drag = null; if (moved) try { localStorage.setItem(POS, JSON.stringify(pos)); } catch (e) {} };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+  });
+  addEventListener('resize', place);
+
+  // ---- right column (computer): hide its ads; optionally drop the whole column and widen the feed into the space ----
+  const rail = () => {
+    const ra = document.querySelector('aside[aria-label="Aside"]'), sec = document.querySelector('section[aria-label="Primary content"]');
+    if (!ra || !sec) return;
+    // LinkedIn's ad slots, and any block labeled Promoted, climbing no higher than the part that holds the news or the footer
+    const ads = [...ra.querySelectorAll('iframe[title="advertisement"]')];
+    ra.querySelectorAll('span,p,div').forEach(x => { if (!x.children.length && /^Promoted$/.test(x.textContent.trim())) ads.push(x); });
+    ads.forEach(a => {
+      let s = a;
+      while (s.parentElement && s.parentElement !== ra && !s.parentElement.querySelector('footer') && !/LinkedIn News/.test(s.parentElement.textContent)) s = s.parentElement;
+      s.dataset.licAd = '1';
+    });
+    document.querySelectorAll('[data-lic-ad]').forEach(a => { a.style.display = opt.sidebar ? 'none' : ''; });
+    const wide = !phone && opt.sidebar && opt.widen;
+    if (wide && !ra.dataset.licRail) {
+      ra.dataset.licRail = '1'; ra.style.display = 'none';
+      sec.dataset.licCol = sec.style.gridColumn;
+      sec.style.gridColumn = getComputedStyle(sec).gridColumnStart + ' / -1';
+    } else if (!wide && ra.dataset.licRail) {
+      delete ra.dataset.licRail; ra.style.display = '';
+      sec.style.gridColumn = sec.dataset.licCol || ''; delete sec.dataset.licCol;
+    }
+  };
   const applySettings = k => {
     if (k === 'debug') {
       if (!opt.debug) document.querySelectorAll('.lic-dbg').forEach(d => d.remove());
@@ -257,7 +324,7 @@
 
   // ---- main pass ----
   const scan = () => {
-    if (!gear.isConnected) document.body.append(gear, panel);
+    if (!gear.isConnected) { document.body.append(gear, panel); place(); }
     // only show our controls on the feed: on a single post they'd cover LinkedIn's comment box
     const onFeed = /^\/feed(\/|$)/.test(location.pathname) && !/^\/feed\/update\//.test(location.pathname);
     [gear, panel, box].forEach(e => { e.style.visibility = onFeed ? '' : 'hidden'; });
@@ -265,6 +332,7 @@
     if (onFeed) {
       document.querySelectorAll('[data-testid="mainFeed"] [id^="expanded"]:not([' + DONE + '])').forEach(check);
       document.querySelectorAll('[componentkey^="feed.confirmation_confirmation-"]:not([' + DONE + '])').forEach(compact);
+      rail();
     }
     show();
   };
