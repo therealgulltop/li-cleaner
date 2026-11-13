@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LI Cleaner
-// @version      8
+// @version      9
 // @namespace    https://github.com/therealgulltop/li-cleaner
-// @description  Hides LinkedIn feed posts that only show up because someone reacted to or commented on them, unless you're connected to the poster.
+// @description  Hides LinkedIn feed posts from people you're not connected to, including ones that only show up because someone reacted to or commented on them.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/li-cleaner/main/li-cleaner.user.js
 // @downloadURL  https://raw.githubusercontent.com/therealgulltop/li-cleaner/main/li-cleaner.user.js
 // @match        https://www.linkedin.com/*
@@ -15,11 +15,11 @@
 // Click the LI Cleaner logo (bottom-left on a computer, bottom-right on a phone) for settings; drag it or the counter anywhere.  Both are remembered in this browser.
 (() => {
   if (document.documentElement.dataset.licRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.licRunning = '8';
+  document.documentElement.dataset.licRunning = '9';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 8, KEY = 'lic-latest-li-cleaner.user.js';
+    const VER = 9, KEY = 'lic-latest-li-cleaner.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.lic-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -50,7 +50,7 @@
   setInterval(checkLatest, 10 * 60000);
 
   // ---- settings ----
-  const DEFAULTS = { reactions: true, comments: true, sidebar: true, widen: true, debug: false };
+  const DEFAULTS = { reactions: true, comments: true, others: true, sidebar: true, widen: true, debug: false };
   const load = () => { try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem('lic-settings') || '{}')); } catch (e) { return Object.assign({}, DEFAULTS); } };
   const save = () => { try { localStorage.setItem('lic-settings', JSON.stringify(opt)); } catch (e) {} };
   const opt = load();
@@ -68,12 +68,12 @@
   const undoBtn = {};  // post id -> LinkedIn's Undo button for posts we hid
   const undone = {};   // post id -> 1 once you click Undo; we leave that post alone
   const seen = {};
-  const count = { reactions: 0, comments: 0 };
+  const count = { reactions: 0, comments: 0, others: 0 };
 
   const idOf = card => { const m = (card.id || '').match(/^expanded(.+?)FeedType_/); return m ? m[1] : null; };
   const author = (card, headerP) => {
     for (const a of card.querySelectorAll('a')) {
-      if (headerP.contains(a)) continue;
+      if (headerP && headerP.contains(a)) continue;
       if (/^Visit/.test(a.getAttribute('aria-label') || '')) continue;
       const t = a.innerText.replace(/\s+/g, ' ').trim();
       if (!t) continue;
@@ -99,20 +99,26 @@
     const x = card.querySelector('button[aria-label^="Hide post by"]');
     if (!x) return; // not drawn yet
     const anchor = card.querySelector('[data-sdui-anchor-id^="feed-header-"]');
-    if (!anchor) { card.setAttribute(DONE, 'plain'); tag(card, 'KEEP  no header'); return; }
-    const p = anchor.closest('p');
-    const who = p && author(card, p);
+    const p = anchor && anchor.closest('p');
+    const who = author(card, p);
     if (!who) return;
-    const header = p.textContent.replace(/\s+/g, ' ').trim();
+    const header = p ? p.textContent.replace(/\s+/g, ' ').trim() : '';
     const vm = header.match(VERBS);
-    if (!vm) { card.setAttribute(DONE, 'plain'); tag(card, 'KEEP  header: ' + header); return; }
-    const kind = /^commented/i.test(vm[1]) ? 'comments' : 'reactions';
+    let kind, label;
+    if (vm) {
+      kind = /^commented/i.test(vm[1]) ? 'comments' : 'reactions';
+      label = header + ': ' + who.name + (who.degree ? ' - ' + who.degree : '');
+    } else if (/^(2nd|3rd\+?)$/.test(who.degree) && !/\sreposted\b/i.test(header)) {
+      // the post's own author is a 2nd or 3rd+ person (company pages have no degree and stay; reposts are shares and stay)
+      kind = 'others';
+      label = 'Not connected: ' + who.name + ' - ' + who.degree;
+    } else { card.setAttribute(DONE, 'plain'); tag(card, 'KEEP  ' + (header ? 'header: ' + header : who.name + ' ' + (who.degree || '(page)'))); return; }
     card.dataset.licKind = kind;
     if (who.degree === '1st') { card.setAttribute(DONE, 'kept'); tag(card, 'KEEP  ' + who.name + ' is 1st'); return; }
     if (undone[id]) { card.setAttribute(DONE, 'undone'); tag(card, 'KEEP  you clicked Undo'); return; }
     if (!opt[kind]) { card.setAttribute(DONE, 'off'); tag(card, 'OFF  ' + kind + ' setting is off'); return; }
     card.setAttribute(DONE, 'hidden');
-    labels[id] = header + ': ' + who.name + (who.degree ? ' - ' + who.degree : '');
+    labels[id] = label;
     if (!kinds[id]) count[kind]++;
     kinds[id] = kind;
     x.click();
@@ -178,15 +184,15 @@
   box.style.cssText = 'position:fixed;' + side + ':56px;bottom:8px;min-height:36px;box-sizing:border-box;display:flex;align-items:center;max-width:calc(100vw - 68px);z-index:9999;padding:4px 10px;border-radius:8px;' + GLASS + ';color:#fff;font:12px/1.4 system-ui,sans-serif;cursor:grab;user-select:none';
   const show = () => {
     if (!box.isConnected) document.body.appendChild(box);
-    const posts = Object.keys(seen).length, n = count.reactions + count.comments;
+    const posts = Object.keys(seen).length, n = count.reactions + count.comments + count.others;
     const pct = `${posts ? Math.round(100 * n / posts) : 0}%`;
     // on a phone, just the percentage until the menu is open
-    const s = !phone || panel.style.display === 'block' ? `Reactions ${count.reactions} + Comments ${count.comments} / Posts ${posts} -- ${pct}` : pct;
+    const s = !phone || panel.style.display === 'block' ? `Reactions ${count.reactions} + Comments ${count.comments} + Not connected ${count.others} / Posts ${posts} -- ${pct}` : pct;
     if (box.textContent !== s) { box.textContent = s; place(); }
   };
 
   // [setting, label, parent setting for an indented sub-option, computer only]
-  const OPTIONS = [['reactions', 'Hide posts others reacted to'], ['comments', 'Hide posts others commented on'], ['sidebar', 'Hide ads in the right column', '', 1], ['widen', 'Widen the feed into that space', 'sidebar', 1], ['debug', 'Debug labels']];
+  const OPTIONS = [['reactions', 'Hide posts others reacted to'], ['comments', 'Hide posts others commented on'], ['others', 'Hide posts from people you’re not connected to'], ['sidebar', 'Hide ads in the right column', '', 1], ['widen', 'Widen the feed into that space', 'sidebar', 1], ['debug', 'Debug labels']];
   // ---- settings button (the LI Cleaner logo) + panel ----
   // built with DOM calls because LinkedIn's Trusted Types policy blocks innerHTML
   const logo = () => {
@@ -210,7 +216,7 @@
   const hLogo = document.createElement('span'), hName = document.createElement('span'), hVer = document.createElement('span');
   hLogo.style.cssText = 'flex:none;width:24px;height:24px'; hLogo.appendChild(logo());
   hName.textContent = 'LI Cleaner';
-  hVer.style.cssText = 'font-weight:400;font-size:12px;color:#b0b3b8'; hVer.textContent = 'v8';
+  hVer.style.cssText = 'font-weight:400;font-size:12px;color:#b0b3b8'; hVer.textContent = 'v9';
   head.append(hLogo, hName, hVer);
   panel.appendChild(head);
   const boxes = {};
