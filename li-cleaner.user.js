@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         LI Cleaner
-// @version      10
+// @version      11
 // @namespace    https://github.com/therealgulltop/li-cleaner
 // @description  Hides LinkedIn feed posts from people you're not connected to, including ones that only show up because someone reacted to or commented on them.
 // @updateURL    https://raw.githubusercontent.com/therealgulltop/li-cleaner/main/li-cleaner.user.js
@@ -15,11 +15,11 @@
 // Click the LI Cleaner logo (bottom-left on a computer, bottom-right on a phone) for settings; drag it or the counter anywhere.  Both are remembered in this browser.
 (() => {
   if (document.documentElement.dataset.licRunning) return; // another copy of this script is already running
-  document.documentElement.dataset.licRunning = '10';
+  document.documentElement.dataset.licRunning = '11';
   // ---- stale-copy check: a browser can keep running the old copy after an update until the tab is closed, so compare with GitHub ----
   const checkLatest = () => {
     if (typeof GM_xmlhttpRequest !== 'function') return;
-    const VER = 10, KEY = 'lic-latest-li-cleaner.user.js';
+    const VER = 11, KEY = 'lic-latest-li-cleaner.user.js';
     const tell = latest => {
       if (!(latest > VER) || document.querySelector('.lic-stale')) return;
       try { if (localStorage.getItem(KEY + '-dismissed') === String(latest)) return; } catch (e) {}
@@ -210,22 +210,24 @@
   gear.appendChild(logo());
   gear.style.cssText = 'position:fixed;' + side + ':12px;bottom:8px;z-index:10000;width:36px;height:36px;padding:3px;box-sizing:border-box;border-radius:50%;' + GLASS + ';box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:pointer;user-select:none';
   const panel = document.createElement('div');
-  panel.style.cssText = 'position:fixed;' + side + ':12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:10px 14px;border-radius:10px;' + GLASS + ';color:#e4e6eb;font:15px/2 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
+  panel.style.cssText = 'position:fixed;' + side + ':12px;bottom:52px;z-index:10000;box-sizing:border-box;max-width:calc(100vw - 24px);padding:8px 12px;border-radius:10px;' + GLASS + ';color:#e4e6eb;font:400 12px/1.6 system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.6);display:none';
   const head = document.createElement('div');
-  head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 0 8px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:600 16px/1.2 system-ui,sans-serif';
-  const hLogo = document.createElement('span'), hName = document.createElement('span'), hVer = document.createElement('span');
-  hLogo.style.cssText = 'flex:none;width:24px;height:24px'; hLogo.appendChild(logo());
+  head.style.cssText = 'display:flex;align-items:center;gap:6px;padding:0 0 6px;margin-bottom:4px;border-bottom:1px solid #3e4042;font:400 14px/1.2 system-ui,sans-serif';
+  const hLogo = document.createElement('span'), hName = document.createElement('a'), hVer = document.createElement('span');
+  hLogo.style.cssText = 'flex:none;width:20px;height:20px'; hLogo.appendChild(logo());
   hName.textContent = 'LI Cleaner';
-  hVer.style.cssText = 'font-weight:400;font-size:12px;color:#b0b3b8'; hVer.textContent = 'v10';
+  hName.href = 'https://blog.throbs.net/li-cleaner/'; hName.target = '_blank'; hName.rel = 'noopener'; hName.title = 'About LI Cleaner';
+  hName.style.cssText = 'color:inherit;text-decoration:none';
+  hVer.style.cssText = 'font-weight:400;font-size:9px;color:#7c7f84;margin-left:auto;align-self:flex-start'; hVer.textContent = 'v11';
   head.append(hLogo, hName, hVer);
   panel.appendChild(head);
   const boxes = {};
   const syncSubs = () => OPTIONS.forEach(([k, , parent]) => { if (parent) { boxes[k].disabled = !opt[parent]; boxes[k].parentElement.style.opacity = opt[parent] ? '' : '.5'; } });
   OPTIONS.forEach(([k, text, parent, computer, tip]) => {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;cursor:pointer;color:#e4e6eb;margin:0' + (parent ? ';padding-left:30px' : '') + (computer && phone ? ';display:none' : ''); // a phone has no right column
+    row.style.cssText = 'display:flex;align-items:center;gap:7px;cursor:pointer;font:400 12px/1.6 system-ui,sans-serif;color:#e4e6eb;margin:0' + (parent ? ';padding-left:20px' : '') + (computer && phone ? ';display:none' : ''); // a phone has no right column
     const cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:20px;height:20px;margin:0;opacity:1;position:static;appearance:auto;-webkit-appearance:checkbox';
+    cb.type = 'checkbox'; cb.checked = !!opt[k]; cb.style.cssText = 'width:13px;height:13px;margin:0;opacity:1;position:static;appearance:auto;-webkit-appearance:checkbox;accent-color:#5d6064';
     cb.addEventListener('change', () => { opt[k] = cb.checked; save(); syncSubs(); applySettings(k); });
     if (tip) row.title = tip;
     row.append(cb, document.createTextNode(text));
@@ -302,11 +304,26 @@
     const wide = !phone && opt.sidebar && opt.widen;
     if (wide && !ra.dataset.licRail) {
       ra.dataset.licRail = '1'; ra.style.display = 'none';
+      sec.dataset.licW = Math.round(sec.getBoundingClientRect().width) - 2; // how wide pictures were before widening
       sec.dataset.licCol = sec.style.gridColumn;
       sec.style.gridColumn = getComputedStyle(sec).gridColumnStart + ' / -1';
     } else if (!wide && ra.dataset.licRail) {
       delete ra.dataset.licRail; ra.style.display = '';
       sec.style.gridColumn = sec.dataset.licCol || ''; delete sec.dataset.licCol;
+      document.querySelectorAll('[data-lic-media]').forEach(b => { b.style.maxWidth = b.style.marginLeft = b.style.marginRight = ''; delete b.dataset.licMedia; });
+    }
+    // widened: the text uses the extra room, but pictures and videos keep their old size (centered) instead of growing taller
+    if (wide && +sec.dataset.licW > 0) {
+      const textLen = el => (el.innerText || '').replace(/\s+/g, '').length;
+      document.querySelectorAll('[data-testid="mainFeed"] [id^="expanded"] img, [data-testid="mainFeed"] [id^="expanded"] video').forEach(m => {
+        const card = m.closest('[role="listitem"]'); if (!card || m.closest('[data-lic-media]')) return;
+        const mw = m.getBoundingClientRect().width;
+        if (mw < card.getBoundingClientRect().width * 0.9) return; // only full-width media (not loaded yet, or a small thumbnail: skip)
+        // climb to the box that holds just the picture: same width, no text, not the post's header
+        let box = m;
+        while (box.parentElement && box.parentElement !== card && Math.abs(box.parentElement.getBoundingClientRect().width - mw) < 3 && textLen(box.parentElement) === textLen(box) && !box.parentElement.querySelector('button[aria-label^="Hide post by"]')) box = box.parentElement;
+        box.dataset.licMedia = '1'; box.style.maxWidth = sec.dataset.licW + 'px'; box.style.marginLeft = box.style.marginRight = 'auto';
+      });
     }
   };
   const applySettings = k => {
